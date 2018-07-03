@@ -4,7 +4,7 @@ LD=$(LLVM)/bin/ld.lld
 TRIPLE=amdgcn--amdhsa-hcc
 ARCH=amdgcn
 CPU=gfx900
-FILENAME=test21
+FILENAME=test22
 HIPCC=/opt/rocm/bin/hipcc
 
 CXX=g++
@@ -18,7 +18,7 @@ EXECUTABLE=$(FILENAME)
 all: $(SOURCES) $(EXECUTABLE)
 
 $(EXECUTABLE): $(OBJECTS)
-	$(CXX) $(LDFLAGS) $(OBJECTS) -o $@
+	$(CXX) $(OBJECTS) $(LDFLAGS) -o $@
 
 .cpp.o:
 	$(CXX) -I$(INCDIRS) $(CFLAGS) $< -o $@

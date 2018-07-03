@@ -30,7 +30,7 @@ THE SOFTWARE.
 #include "Headers.h"
 
 llvm::Value* getInt(llvm::LLVMContext& context, uint64_t a);
-llvm::Value* getInt(llvm::IRBuilder<> &builder, llvm::LLVMContext &context, uint64_t a);
+llvm::Value* getInt(llvm::IRBuilder<> &builder, llvm::LLVMContext &context, uint64_t a, bool is_scalar = false);
 
 llvm::Value* IncrementPointer(llvm::IRBuilder<>& builder, llvm::LLVMContext& context, llvm::Value* pointer, llvm::Value* inc, bool is_inc_scalar = false);
 

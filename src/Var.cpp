@@ -26,13 +26,17 @@ llvm::Value* getInt(llvm::LLVMContext &context, uint64_t a) {
     return llvm::ConstantInt::get(context, llvm::APInt(32, a, false));
 }
 
-llvm::Value* getInt(llvm::IRBuilder<> &builder, llvm::LLVMContext &context, uint64_t a) {
+llvm::Value* getInt(llvm::IRBuilder<> &builder, llvm::LLVMContext &context, uint64_t a, bool is_scalar) {
     std::vector<llvm::Type*> asmArgsType;
     std::vector<llvm::Value*> asmArgsValue;
     
     auto fType = llvm::FunctionType::get(llvm::Type::getInt32Ty(context), asmArgsType, false);
 
+    if(is_scalar) {
     return builder.CreateCall(llvm::InlineAsm::get(fType, "s_mov_b32 $0, " + std::to_string(a), "=s", true), asmArgsValue, "");
+    } else {
+    return builder.CreateCall(llvm::InlineAsm::get(fType, "v_mov_b32 $0, " + std::to_string(a), "=v", true), asmArgsValue, "");
+    }
 }
 
 llvm::Value* IncrementPointer(llvm::IRBuilder<>& builder, llvm::LLVMContext& context, llvm::Value* pointer, llvm::Value* inc, bool isIncScalar) {
