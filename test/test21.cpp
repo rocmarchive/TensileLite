@@ -130,38 +130,83 @@ void generateFuncAST(){
     auto c_global_id7 = doUAdd(builder, c_global_id6, x1024);
 */
 
+  std::vector<size_t> indices(15);
+  indices[0] = 16;
+  indices[1] = indices[0] + 1024;
+  indices[2] = indices[1] + 16;
+  indices[3] = indices[2] + 1024;
+  indices[4] = indices[3] + 16;
+  indices[5] = indices[4] + 1024;
+  indices[6] = indices[5] + 16;
 
+  indices[7] = 64 * 1024;
+  indices[8] = indices[7] + 16;
+  indices[9] = indices[8] + 1024;
+  indices[10] = indices[9] + 16;
+  indices[11] = indices[10] + 1024;
+  indices[12] = indices[11] + 16;
+  indices[13] = indices[12] + 1024;
+  indices[14] = indices[13] + 16;
+
+  std::vector<bool> is_relative(indices.size());
+  std::fill(is_relative.begin(), is_relative.end(), true);
+  is_relative[indices.size() / 2] = false;
+
+  auto v = LoadCMatrix(builder, context, C, c_global_id, indices, is_relative);
+
+  auto c0 = v[0];
+  auto c1 = v[1];
+  auto c2 = v[2];
+  auto c3 = v[3];
+
+  auto c4 = v[4];
+  auto c5 = v[5];
+  auto c6 = v[6];
+  auto c7 = v[7];
+
+  auto c8 = v[8];
+  auto c9 = v[9];
+  auto c10 = v[10];
+  auto c11 = v[11];
+
+  auto c12 = v[12];
+  auto c13 = v[13];
+  auto c14 = v[14];
+  auto c15 = v[15];
+  
+  auto c_global_id1 = doUAdd(builder, c_global_id, x1024);
+  auto c_global_id2 = doUAdd(builder, c_global_id1, x1024);
+  auto c_global_id3 = doUAdd(builder, c_global_id2, x1024);
+  auto c_global_id4 = doUAdd(builder, c_global_id, x64k);
+  auto c_global_id5 = doUAdd(builder, c_global_id4, x1024);
+  auto c_global_id6 = doUAdd(builder, c_global_id5, x1024);
+  auto c_global_id7 = doUAdd(builder, c_global_id6, x1024);
+
+/*
   auto c0 = getGlobalLoad(builder, C, c_global_id);
   auto c4 = getGlobalLoad(builder, C, c_global_id, 256);
 
-  auto c_global_id1 = doUAdd(builder, c_global_id, x1024);
   auto c1 = getGlobalLoad(builder, C, c_global_id1);
   auto c5 = getGlobalLoad(builder, C, c_global_id1, 256);
 
-  auto c_global_id2 = doUAdd(builder, c_global_id1, x1024);
   auto c2 = getGlobalLoad(builder, C, c_global_id2);
   auto c6 = getGlobalLoad(builder, C, c_global_id2, 256);
 
-  auto c_global_id3 = doUAdd(builder, c_global_id2, x1024);
   auto c3 = getGlobalLoad(builder, C, c_global_id3);
   auto c7 = getGlobalLoad(builder, C, c_global_id3, 256);
 
-  auto c_global_id4 = doUAdd(builder, c_global_id, x64k);
   auto c8 = getGlobalLoad(builder, C, c_global_id4);
   auto c12 = getGlobalLoad(builder, C, c_global_id4, 256);
 
-  auto c_global_id5 = doUAdd(builder, c_global_id4, x1024);
   auto c9 = getGlobalLoad(builder, C, c_global_id5);
   auto c13 = getGlobalLoad(builder, C, c_global_id5, 256);
 
-  auto c_global_id6 = doUAdd(builder, c_global_id5, x1024);
   auto c10 = getGlobalLoad(builder, C, c_global_id6);
   auto c14 = getGlobalLoad(builder, C, c_global_id6, 256);
 
-  auto c_global_id7 = doUAdd(builder, c_global_id6, x1024);
   auto c11 = getGlobalLoad(builder, C, c_global_id7);
   auto c15 = getGlobalLoad(builder, C, c_global_id7, 256);
-
+*/
 
 /*
   auto CLoad1 = IncrementPointer(builder, context, C, c_id);
@@ -569,7 +614,7 @@ void generateFuncAST(){
   doMac4x4(builder, context, a3, b3, c12, c13, c14, c15);
 
 
-    auto CStore = NamedValues[Args[2]];
+    auto CStore = NamedValues[Args[3]];
 
 /*
     auto CStore1 = IncrementPointer(builder, context, CStore, c_id);

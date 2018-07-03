@@ -29,6 +29,8 @@ THE SOFTWARE.
 
 #include "Headers.h"
 
+std::vector<llvm::Value*> LoadCMatrix(llvm::IRBuilder<>& builder, llvm::LLVMContext& context, llvm::Value* ptr, llvm::Value* workitem_index, std::vector<size_t> indices, std::vector<bool> is_relative_indices);
+
 void getGlobalLoad(llvm::IRBuilder<> &builder, llvm::LLVMContext &context, llvm::Value* ptr, llvm::Value *val, size_t offset=0);
 
 llvm::Value* getGlobalLoad(llvm::IRBuilder<> &builder, llvm::Value* gep, llvm::Value *index, size_t offset=0);

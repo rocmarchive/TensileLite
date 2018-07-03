@@ -22,6 +22,97 @@ THE SOFTWARE.
 
 #include "tlite/GlobalOps.h"
 
+std::vector<llvm::Value*> LoadCMatrix(llvm::IRBuilder<>& builder, llvm::LLVMContext& context, llvm::Value* ptr, llvm::Value* workitem_index, std::vector<size_t> indices, std::vector<bool> is_relative_indices) {
+    std::vector<size_t> relative_indices(indices.size());
+    std::vector<llvm::Value*> c_elements(indices.size() + 1);
+    relative_indices[0] = indices[0];
+    for(size_t i = 1; i < relative_indices.size(); i++) {
+        if(is_relative_indices[i] == true) {
+            relative_indices[i] = indices[i] - indices[i - 1];
+        } else {
+            relative_indices[i] = indices[i];
+        }
+    }
+    for(auto iter = relative_indices.begin(); iter != relative_indices.end(); iter++) {
+        std::cout << *iter << std::endl;
+    }
+
+    llvm::Value* c_ptr_to_int = builder.CreatePtrToInt(ptr, llvm::Type::getInt64Ty(context));
+    size_t scale = sizeof(float) * 4;
+    auto c_lsb = builder.CreateTrunc(c_ptr_to_int, llvm::Type::getInt32Ty(context));
+    auto c_lshr = builder.CreateLShr(c_ptr_to_int, 32);
+    auto c_msb = builder.CreateTrunc(c_lshr, llvm::Type::getInt32Ty(context));
+
+    std::vector<llvm::Type*> ret_types_for_wiid(2);
+    // wiid = workitem index
+    std::vector<llvm::Type*> arg_types_for_wiid(3);
+    std::vector<llvm::Value*> arg_values_for_wiid(3);
+    auto scalar_type = llvm::Type::getInt32Ty(context);
+
+    for(size_t i = 0; i < 2; i++) {
+        ret_types_for_wiid[i] = scalar_type;
+    }
+
+    for(size_t i = 0; i < 3; i++) {
+        arg_types_for_wiid[i] = scalar_type;
+    }
+
+    arg_values_for_wiid[0] = c_lsb;
+    arg_values_for_wiid[1] = c_msb;
+    arg_values_for_wiid[2] = workitem_index;
+
+    std::string asm_str_wiid = "v_add_co_u32 $0, vcc, $2, $4\n v_addc_co_u32 $1, vcc, $3, 0, vcc\n";
+    std::string asm_constraints_wiid = "=v,=v,v,v,v";
+
+    auto ftype_wiid = llvm::FunctionType::get(llvm::StructType::get(context, ret_types_for_wiid), arg_types_for_wiid, false);
+
+    auto ret_values_for_wiid = builder.CreateCall(llvm::InlineAsm::get(ftype_wiid, asm_str_wiid, asm_constraints_wiid, true), arg_values_for_wiid, "");
+
+    uint64_t idx = 0;
+    auto ptr_lsb = builder.CreateExtractValue(ret_values_for_wiid, idx++);
+    auto ptr_msb = builder.CreateExtractValue(ret_values_for_wiid, idx++);
+
+    auto ptr_lsb_64 = builder.CreateZExt(ptr_lsb, llvm::Type::getInt64Ty(context));
+    auto ptr_msb_64 = builder.CreateZExt(ptr_msb, llvm::Type::getInt64Ty(context));
+    auto ptr_msb_shl_64 = builder.CreateShl(ptr_msb_64, 32);
+    auto ptr_64 = builder.CreateOr(ptr_lsb_64, ptr_msb_shl_64);
+
+    auto ptr_wiid = builder.CreateIntToPtr(ptr_64, ptr->getType());
+
+    c_elements[0] = builder.CreateLoad(ptr_wiid);
+
+    std::string asm_str_id = "v_add_co_u32 $0, vcc, $0, $2\n v_addc_co_u32 $1, vcc, $1, 0, vcc\n";
+    std::string asm_constraints_id = "v,v,v";
+
+    auto ret_types_for_id = llvm::Type::getVoidTy(context);
+
+    std::vector<llvm::Type*> arg_types_for_id(3);
+    for(size_t i = 0; i < 3; i++) {
+        arg_types_for_id[i] = scalar_type;
+    }
+
+    std::vector<llvm::Value*> arg_values_for_id(3);
+
+    arg_values_for_id[0] = ptr_lsb;
+    arg_values_for_id[1] = ptr_msb;
+    arg_values_for_id[2] = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), relative_indices[0]);
+
+    auto ftype_id = llvm::FunctionType::get(ret_types_for_id, arg_types_for_id, false);
+    for(size_t i = 1; i < c_elements.size(); i++) {
+        arg_values_for_id[2] = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), relative_indices[i-1] * scale);
+        builder.CreateCall(llvm::InlineAsm::get(ftype_id, asm_str_id, asm_constraints_id, true), arg_values_for_id, "");
+        
+        auto ptr_lsb_64_1 = builder.CreateZExt(ptr_lsb, llvm::Type::getInt64Ty(context));
+        auto ptr_msb_64_1 = builder.CreateZExt(ptr_msb, llvm::Type::getInt64Ty(context));
+        auto ptr_msb_shl_64_1 = builder.CreateShl(ptr_msb_64_1, 32);
+        auto ptr_64_1 = builder.CreateOr(ptr_lsb_64_1, ptr_msb_shl_64_1);
+
+        auto ptr_id = builder.CreateIntToPtr(ptr_64_1, ptr->getType());
+        c_elements[i] = builder.CreateLoad(ptr_id);
+    }
+    return c_elements;
+}
+
 void getGlobalLoad(llvm::IRBuilder<> &builder, llvm::LLVMContext &context, llvm::Value* ptr, llvm::Value *val, size_t offset) {
     std::vector<llvm::Type*> loadTypes(2);
     loadTypes[0] = val->getType();
