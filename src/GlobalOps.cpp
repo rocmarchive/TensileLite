@@ -38,9 +38,6 @@ std::vector<llvm::Value*> LoadCMatrix(llvm::IRBuilder<>& builder, llvm::LLVMCont
             relative_indices[i] = indices[i];
         }
     }
-    for(auto iter = relative_indices.begin(); iter != relative_indices.end(); iter++) {
-        std::cout << *iter << std::endl;
-    }
 
     llvm::Value* c_ptr_to_int = builder.CreatePtrToInt(ptr, llvm::Type::getInt64Ty(context));
     size_t scale = sizeof(float) * 4;
@@ -64,7 +61,8 @@ std::vector<llvm::Value*> LoadCMatrix(llvm::IRBuilder<>& builder, llvm::LLVMCont
 
     arg_values_for_wiid[0] = c_lsb;
     arg_values_for_wiid[1] = c_msb;
-    arg_values_for_wiid[2] = workitem_index;
+    llvm::Value* x16 = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 16);
+    arg_values_for_wiid[2] = builder.CreateMul(workitem_index, x16);
 
     std::string asm_str_wiid = "v_add_co_u32 $0, vcc, $2, $4\n v_addc_co_u32 $1, vcc, $3, 0, vcc\n";
     std::string asm_constraints_wiid = "=v,=v,v,v,v";
@@ -93,7 +91,7 @@ std::vector<llvm::Value*> LoadCMatrix(llvm::IRBuilder<>& builder, llvm::LLVMCont
 
     arg_values_for_id[0] = ptr_lsb_wiid;
     arg_values_for_id[1] = ptr_msb_wiid;
-    arg_values_for_id[2] = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), relative_indices[0]);
+    arg_values_for_id[2] = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), relative_indices[0] * scale);
 
     auto ret_values_for_id = builder.CreateCall(llvm::InlineAsm::get(ftype_wiid, asm_str_wiid, asm_constraints_wiid, true), arg_values_for_id, "");
 
