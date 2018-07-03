@@ -22,6 +22,11 @@ THE SOFTWARE.
 
 #include "tlite/GlobalOps.h"
 
+
+// 2 sets of register pairs
+// one pair for storing C + index
+// other pair to keep incrementing to do loads
+// on different elements of micro-tile
 std::vector<llvm::Value*> LoadCMatrix(llvm::IRBuilder<>& builder, llvm::LLVMContext& context, llvm::Value* ptr, llvm::Value* workitem_index, std::vector<size_t> indices, std::vector<bool> is_relative_indices) {
     std::vector<size_t> relative_indices(indices.size());
     std::vector<llvm::Value*> c_elements(indices.size() + 1);
@@ -69,17 +74,41 @@ std::vector<llvm::Value*> LoadCMatrix(llvm::IRBuilder<>& builder, llvm::LLVMCont
     auto ret_values_for_wiid = builder.CreateCall(llvm::InlineAsm::get(ftype_wiid, asm_str_wiid, asm_constraints_wiid, true), arg_values_for_wiid, "");
 
     uint64_t idx = 0;
-    auto ptr_lsb = builder.CreateExtractValue(ret_values_for_wiid, idx++);
-    auto ptr_msb = builder.CreateExtractValue(ret_values_for_wiid, idx++);
+    auto ptr_lsb_wiid = builder.CreateExtractValue(ret_values_for_wiid, idx++);
+    auto ptr_msb_wiid = builder.CreateExtractValue(ret_values_for_wiid, idx++);
 
-    auto ptr_lsb_64 = builder.CreateZExt(ptr_lsb, llvm::Type::getInt64Ty(context));
-    auto ptr_msb_64 = builder.CreateZExt(ptr_msb, llvm::Type::getInt64Ty(context));
-    auto ptr_msb_shl_64 = builder.CreateShl(ptr_msb_64, 32);
-    auto ptr_64 = builder.CreateOr(ptr_lsb_64, ptr_msb_shl_64);
+    auto ptr_lsb_wiid_64 = builder.CreateZExt(ptr_lsb_wiid, llvm::Type::getInt64Ty(context));
+    auto ptr_msb_wiid_64 = builder.CreateZExt(ptr_msb_wiid, llvm::Type::getInt64Ty(context));
+    auto ptr_msb_shl_wiid_64 = builder.CreateShl(ptr_msb_wiid_64, 32);
+    auto ptr_wiid_64 = builder.CreateOr(ptr_lsb_wiid_64, ptr_msb_shl_wiid_64);
 
-    auto ptr_wiid = builder.CreateIntToPtr(ptr_64, ptr->getType());
+    auto ptr_wiid = builder.CreateIntToPtr(ptr_wiid_64, ptr->getType());
 
+    // got first element
     c_elements[0] = builder.CreateLoad(ptr_wiid);
+
+
+    // now, do the next element and keep using
+    std::vector<llvm::Value*> arg_values_for_id(3);
+
+    arg_values_for_id[0] = ptr_lsb_wiid;
+    arg_values_for_id[1] = ptr_msb_wiid;
+    arg_values_for_id[2] = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), relative_indices[0]);
+
+    auto ret_values_for_id = builder.CreateCall(llvm::InlineAsm::get(ftype_wiid, asm_str_wiid, asm_constraints_wiid, true), arg_values_for_id, "");
+
+    idx = 0;
+    auto ptr_lsb_id = builder.CreateExtractValue(ret_values_for_id, idx++);
+    auto ptr_msb_id = builder.CreateExtractValue(ret_values_for_id, idx++);
+
+    auto ptr_lsb_id_64 = builder.CreateZExt(ptr_lsb_id, llvm::Type::getInt64Ty(context));
+    auto ptr_msb_id_64 = builder.CreateZExt(ptr_msb_id, llvm::Type::getInt64Ty(context));
+    auto ptr_msb_shl_id_64 = builder.CreateShl(ptr_msb_id_64, 32);
+    auto ptr_id_64 = builder.CreateOr(ptr_lsb_id_64, ptr_msb_shl_id_64);
+
+    auto ptr_id = builder.CreateIntToPtr(ptr_id_64, ptr->getType());
+
+    c_elements[1] = builder.CreateLoad(ptr_id);
 
     std::string asm_str_id = "v_add_co_u32 $0, vcc, $0, $2\n v_addc_co_u32 $1, vcc, $1, 0, vcc\n";
     std::string asm_constraints_id = "v,v,v";
@@ -91,24 +120,39 @@ std::vector<llvm::Value*> LoadCMatrix(llvm::IRBuilder<>& builder, llvm::LLVMCont
         arg_types_for_id[i] = scalar_type;
     }
 
-    std::vector<llvm::Value*> arg_values_for_id(3);
-
-    arg_values_for_id[0] = ptr_lsb;
-    arg_values_for_id[1] = ptr_msb;
-    arg_values_for_id[2] = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), relative_indices[0]);
-
     auto ftype_id = llvm::FunctionType::get(ret_types_for_id, arg_types_for_id, false);
-    for(size_t i = 1; i < c_elements.size(); i++) {
+    for(size_t i = 2; i < c_elements.size(); i++) {
+        if(is_relative_indices[i-1] == true) {
+        arg_values_for_id[0] = ptr_lsb_id;
+        arg_values_for_id[1] = ptr_msb_id;
         arg_values_for_id[2] = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), relative_indices[i-1] * scale);
         builder.CreateCall(llvm::InlineAsm::get(ftype_id, asm_str_id, asm_constraints_id, true), arg_values_for_id, "");
         
-        auto ptr_lsb_64_1 = builder.CreateZExt(ptr_lsb, llvm::Type::getInt64Ty(context));
-        auto ptr_msb_64_1 = builder.CreateZExt(ptr_msb, llvm::Type::getInt64Ty(context));
-        auto ptr_msb_shl_64_1 = builder.CreateShl(ptr_msb_64_1, 32);
-        auto ptr_64_1 = builder.CreateOr(ptr_lsb_64_1, ptr_msb_shl_64_1);
+        auto ptr_lsb_id_64_1 = builder.CreateZExt(ptr_lsb_id, llvm::Type::getInt64Ty(context));
+        auto ptr_msb_id_64_1 = builder.CreateZExt(ptr_msb_id, llvm::Type::getInt64Ty(context));
+        auto ptr_msb_shl_id_64_1 = builder.CreateShl(ptr_msb_id_64_1, 32);
+        auto ptr_id_64_1 = builder.CreateOr(ptr_lsb_id_64_1, ptr_msb_shl_id_64_1);
 
-        auto ptr_id = builder.CreateIntToPtr(ptr_64_1, ptr->getType());
+        auto ptr_id = builder.CreateIntToPtr(ptr_id_64_1, ptr->getType());
         c_elements[i] = builder.CreateLoad(ptr_id);
+        } else {
+        arg_values_for_id[0] = ptr_lsb_wiid;
+        arg_values_for_id[1] = ptr_msb_wiid;
+        arg_values_for_id[2] = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), indices[i-1] * scale);
+        ret_values_for_id = builder.CreateCall(llvm::InlineAsm::get(ftype_wiid, asm_str_wiid, asm_constraints_wiid, true), arg_values_for_wiid, "");
+
+        idx = 0;
+        ptr_lsb_id = builder.CreateExtractValue(ret_values_for_id, idx++);
+        ptr_msb_id = builder.CreateExtractValue(ret_values_for_id, idx++);
+
+        ptr_lsb_id_64 = builder.CreateZExt(ptr_lsb_id, llvm::Type::getInt64Ty(context));
+        ptr_msb_id_64 = builder.CreateZExt(ptr_msb_id, llvm::Type::getInt64Ty(context));
+        ptr_msb_shl_id_64 = builder.CreateShl(ptr_msb_id_64, 32);
+        ptr_id_64 = builder.CreateOr(ptr_msb_shl_id_64, ptr_lsb_id_64);
+        auto ptr_id = builder.CreateIntToPtr(ptr_id_64, ptr->getType());
+        c_elements[i] = builder.CreateLoad(ptr_id);
+
+        }
     }
     return c_elements;
 }

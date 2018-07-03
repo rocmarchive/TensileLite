@@ -4,7 +4,7 @@ LD=$(LLVM)/bin/ld.lld
 TRIPLE=amdgcn--amdhsa-hcc
 ARCH=amdgcn
 CPU=gfx900
-FILENAME=test22
+FILENAME=test21
 HIPCC=/opt/rocm/bin/hipcc
 
 CXX=g++
