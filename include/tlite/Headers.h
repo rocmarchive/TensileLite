@@ -52,4 +52,40 @@ THE SOFTWARE.
 #include<stdint.h>
 #include<memory>
 #include<map>
+#include<unordered_map>
 #include<fstream>
+
+namespace tlite {
+namespace types {
+
+typedef std::pair<size_t, size_t> tile_t;
+
+template<typename First, typename Second, typename Third>
+class triple {
+    public:
+    First first;
+    Second second;
+    Third third;
+    triple(First f, Second s, Third t) :
+        first(f), second(s), third(t) {}
+    ~triple() {}
+};
+
+typedef tlite::types::triple<size_t, size_t, size_t> tripleSize_t;
+typedef tlite::types::triple<llvm::Value*, llvm::Value*, llvm::Value*> tripleValue_t;
+
+typedef enum {
+    Int8,
+    Half,
+    Float,
+    Double,
+} dataType_t;
+
+typedef enum {
+    gfx803,
+    gfx900
+} gfxArch_t;
+
+} // namespace types
+
+} // namespace types

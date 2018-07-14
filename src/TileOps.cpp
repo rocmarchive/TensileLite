@@ -219,3 +219,11 @@ llvm::Value* InitMicroTile(llvm::IRBuilder<> &builder, llvm::LLVMContext &contex
 */
 
 }
+
+//
+// Takes an array of vector data types
+//
+void doTileMac(llvm::IRBuilder<>& builder, llvm::LLVMContext& context, std::vector<llvm::Value*> a, std::vector<llvm::Value*> b, std::vector<llvm::Value*> c) {
+    assert(a.size() * b.size() == c.size());
+    
+}

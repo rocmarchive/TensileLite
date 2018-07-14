@@ -29,13 +29,25 @@ THE SOFTWARE.
 
 #include "Headers.h"
 
+// Provide C Matrix pointer, work item idx, idy, workgroup idx, idy, micro tile size, sub-micro tile size.
+__attribute__((warning("Work in progress, expect API changes")))
+std::vector<llvm::Value*> LoadCMatrixMicroTile(llvm::IRBuilder<>& builder, llvm::LLVMContext& context, \
+    tlite::types::tripleValue_t workitems, tlite::types::tripleValue_t workgroups, \
+    tlite::types::tile_t matrix_dimensions, tlite::types::tile_t num_micro_tiles, \
+    tlite::types::tile_t sub_micro_tile, tlite::types::tile_t workgroup_size, \
+    tlite::types::dataType_t data_type, tlite::types::gfxArch_t gfx_arch);
+
+__attribute__((warning("Work in progress, expect API changes")))
 std::vector<llvm::Value*> LoadCMatrix(llvm::IRBuilder<>& builder, llvm::LLVMContext& context, llvm::Value* ptr, llvm::Value* workitem_index, std::vector<size_t> indices, std::vector<bool> is_relative_indices);
+
+__attribute__((warning("Work in progress, expect API changes")))
+void StoreCMatrix(llvm::IRBuilder<>& builder, llvm::LLVMContext& context, llvm::Value* ptr, llvm::Value* workitem_index, std::vector<size_t> indices, std::vector<bool> is_relative_indices);
 
 void getGlobalLoad(llvm::IRBuilder<> &builder, llvm::LLVMContext &context, llvm::Value* ptr, llvm::Value *val, size_t offset=0);
 
 llvm::Value* getGlobalLoad(llvm::IRBuilder<> &builder, llvm::Value* gep, llvm::Value *index, size_t offset=0);
 
-llvm::Value* getGlobalLoad(llvm::IRBuilder<> &builder, llvm::Value* ptr, size_t offset=0);
+llvm::Value* getGlobalLoad(llvm::IRBuilder<> &builder, llvm::Value* ptr, size_t offset = 0);
 
 void getGlobalStore(llvm::IRBuilder<> &builder, llvm::LLVMContext &context, llvm::Value *gep, llvm::Value *index, llvm::Value *value, size_t offset=0);
 

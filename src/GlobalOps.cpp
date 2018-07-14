@@ -22,6 +22,93 @@ THE SOFTWARE.
 
 #include "tlite/GlobalOps.h"
 
+const std::string kasm_str_wiid = "v_add_co_u32 $0, vcc, $2, $4\n v_addc_co_u32 $1, vcc, $3, 0, vcc\n";
+const std::string kasm_constraints_wiid = "=v,=v,v,v,v";
+const std::string kasm_str_id = "v_add_co_u32 $0, vcc, $0, $2\n v_addc_co_u32 $1, vcc, $1, 0, vcc\n";
+const std::string kasm_constraints_id = "v,v,v";
+
+using namespace tlite::types;
+
+std::unordered_map<size_t, llvm::Value*> constant_values;
+
+std::vector<llvm::Value*> LoadCMatrixMicroTile(llvm::IRBuilder<>& builder, llvm::LLVMContext& context, \
+    tlite::types::tripleValue_t workitems, tlite::types::tripleValue_t workgroups, \
+    tlite::types::tile_t matrix_dimensions, tlite::types::tile_t num_micro_tiles, \
+    tlite::types::tile_t sub_micro_tile, tlite::types::tile_t workgroup_size, \
+    tlite::types::dataType_t data_type, tlite::types::gfxArch_t gfx_arch)
+{
+    llvm::Value* workitem_index_x = workitems.first;
+    llvm::Value* workitem_index_y = workitems.second;
+    llvm::Value* workitem_index_z = workitems.third;
+
+    llvm::Value* workgroup_index_x = workgroups.first;
+    llvm::Value* workgroup_index_y = workgroups.second;
+    llvm::Value* workgroup_index_z = workgroups.third;
+
+    size_t sub_micro_tile_x = sub_micro_tile.first;
+    size_t sub_micro_tile_y = sub_micro_tile.second;
+
+    size_t num_micro_tile_x = num_micro_tiles.first;
+    size_t num_micro_tile_y = num_micro_tiles.second;
+
+    size_t matrix_dim_x = matrix_dimensions.first;
+    size_t matrix_dim_y = matrix_dimensions.second;
+
+    size_t workgroup_size_x = workgroup_size.first;
+    size_t workgroup_size_y = workgroup_size.second;
+
+    //
+    // Try to limit the dimensions of sub_micro_tile
+    // so that coalesced global memory load operations
+    // can be dispatched.
+    //
+    assert(sub_micro_tile_x <= 4 && \
+        "Sub micro tile on x dimension exceeds 4");
+    assert(sub_micro_tile_y <= 4 && \
+        "Sub micro tile on y dimension exceeds 4");
+
+    // create a vector of data type from type of width sub_micro_tile.x
+    llvm::Type* vector_type = nullptr;
+    if(data_type == dataType_t::Float) {
+        vector_type = llvm::VectorType::get(llvm::Type::getFloatTy(context), sub_micro_tile_x);
+    }
+
+    // TODO: find a way to get good indices for non-multiple of 2 dimensions
+    //
+    // create a device function that computes c matrix
+    // vector access indices
+    //
+    // id = tx + ty * sub_micro_tile_y * (matrix_dim_x /  sub_micro_tile_x) + 
+    // bx * ((sub_micro_tile_x * num_micro_tile_x) / sub_micro_tile_x) * workgroup_size_x + 
+    // by * micro_tile_y * sub_micro_tile_y * workgroup_size_x * workgroup_size_y
+    //
+
+    size_t ty_factor = 0;
+    size_t bx_factor = 0;
+    size_t by_factor = 0;
+
+    if(constant_values.find(ty_factor) == constant_values.end())
+        constant_values[ty_factor] = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), ty_factor);
+    
+    if(constant_values.find(bx_factor) == constant_values.end())
+        constant_values[bx_factor] = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), bx_factor);
+    
+    if(constant_values.find(by_factor) == constant_values.end())
+        constant_values[by_factor] = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), by_factor);
+
+    llvm::Value* ty_factor_value = constant_values[ty_factor];
+    llvm::Value* bx_factor_value = constant_values[bx_factor];
+    llvm::Value* by_factor_value = constant_values[by_factor];
+
+    // generate index for loading micro-tile of C matrix
+
+    llvm::Value* id = builder.CreateAdd(builder.CreateAdd(builder.CreateAdd(workitem_index_x, builder.CreateMul(workitem_index_y, ty_factor_value)), builder.CreateMul(workgroup_index_x, bx_factor_value)), builder.CreateMul(workgroup_index_y, by_factor_value));
+
+    // TODO: Find all the indices for each <n x float> 
+
+    std::vector<llvm::Value*> rets;
+    return rets;
+}
 
 // 2 sets of register pairs
 // one pair for storing C + index
@@ -64,12 +151,9 @@ std::vector<llvm::Value*> LoadCMatrix(llvm::IRBuilder<>& builder, llvm::LLVMCont
     llvm::Value* x16 = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 16);
     arg_values_for_wiid[2] = builder.CreateMul(workitem_index, x16);
 
-    std::string asm_str_wiid = "v_add_co_u32 $0, vcc, $2, $4\n v_addc_co_u32 $1, vcc, $3, 0, vcc\n";
-    std::string asm_constraints_wiid = "=v,=v,v,v,v";
-
     auto ftype_wiid = llvm::FunctionType::get(llvm::StructType::get(context, ret_types_for_wiid), arg_types_for_wiid, false);
 
-    auto ret_values_for_wiid = builder.CreateCall(llvm::InlineAsm::get(ftype_wiid, asm_str_wiid, asm_constraints_wiid, true), arg_values_for_wiid, "");
+    auto ret_values_for_wiid = builder.CreateCall(llvm::InlineAsm::get(ftype_wiid, kasm_str_wiid, kasm_constraints_wiid, true), arg_values_for_wiid, "");
 
     uint64_t idx = 0;
     auto ptr_lsb_wiid = builder.CreateExtractValue(ret_values_for_wiid, idx++);
@@ -93,7 +177,7 @@ std::vector<llvm::Value*> LoadCMatrix(llvm::IRBuilder<>& builder, llvm::LLVMCont
     arg_values_for_id[1] = ptr_msb_wiid;
     arg_values_for_id[2] = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), relative_indices[0] * scale);
 
-    auto ret_values_for_id = builder.CreateCall(llvm::InlineAsm::get(ftype_wiid, asm_str_wiid, asm_constraints_wiid, true), arg_values_for_id, "");
+    auto ret_values_for_id = builder.CreateCall(llvm::InlineAsm::get(ftype_wiid, kasm_str_wiid, kasm_constraints_wiid, true), arg_values_for_id, "");
 
     idx = 0;
     auto ptr_lsb_id = builder.CreateExtractValue(ret_values_for_id, idx++);
@@ -108,9 +192,6 @@ std::vector<llvm::Value*> LoadCMatrix(llvm::IRBuilder<>& builder, llvm::LLVMCont
 
     c_elements[1] = builder.CreateLoad(ptr_id);
 
-    std::string asm_str_id = "v_add_co_u32 $0, vcc, $0, $2\n v_addc_co_u32 $1, vcc, $1, 0, vcc\n";
-    std::string asm_constraints_id = "v,v,v";
-
     auto ret_types_for_id = llvm::Type::getVoidTy(context);
 
     std::vector<llvm::Type*> arg_types_for_id(3);
@@ -124,7 +205,7 @@ std::vector<llvm::Value*> LoadCMatrix(llvm::IRBuilder<>& builder, llvm::LLVMCont
         arg_values_for_id[0] = ptr_lsb_id;
         arg_values_for_id[1] = ptr_msb_id;
         arg_values_for_id[2] = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), relative_indices[i-1] * scale);
-        builder.CreateCall(llvm::InlineAsm::get(ftype_id, asm_str_id, asm_constraints_id, true), arg_values_for_id, "");
+        builder.CreateCall(llvm::InlineAsm::get(ftype_id, kasm_str_id, kasm_constraints_id, true), arg_values_for_id, "");
         
         auto ptr_lsb_id_64_1 = builder.CreateZExt(ptr_lsb_id, llvm::Type::getInt64Ty(context));
         auto ptr_msb_id_64_1 = builder.CreateZExt(ptr_msb_id, llvm::Type::getInt64Ty(context));
@@ -137,7 +218,7 @@ std::vector<llvm::Value*> LoadCMatrix(llvm::IRBuilder<>& builder, llvm::LLVMCont
         arg_values_for_id[0] = ptr_lsb_wiid;
         arg_values_for_id[1] = ptr_msb_wiid;
         arg_values_for_id[2] = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), indices[i-1] * scale);
-        ret_values_for_id = builder.CreateCall(llvm::InlineAsm::get(ftype_wiid, asm_str_wiid, asm_constraints_wiid, true), arg_values_for_wiid, "");
+        ret_values_for_id = builder.CreateCall(llvm::InlineAsm::get(ftype_wiid, kasm_str_wiid, kasm_constraints_wiid, true), arg_values_for_wiid, "");
 
         idx = 0;
         ptr_lsb_id = builder.CreateExtractValue(ret_values_for_id, idx++);
@@ -153,6 +234,21 @@ std::vector<llvm::Value*> LoadCMatrix(llvm::IRBuilder<>& builder, llvm::LLVMCont
         }
     }
     return c_elements;
+}
+
+void StoreCMatrix(llvm::IRBuilder<>& builder, llvm::LLVMContext& context, llvm::Value* ptr, llvm::Value* workitem_index, std::vector<size_t> indices, std::vector<bool> is_relative_indices, std::vector<llvm::Value*> c_values) {
+    std::vector<size_t> relative_indices(indices.size());
+    relative_indices[0] = indices[0];
+    for(size_t i = 1; i < indices.size(); i++) {
+        if(is_relative_indices[i] == true) {
+            relative_indices[i] = indices[i] - indices[i - 1];
+        }
+        else {
+            relative_indices[i] = indices[i];
+        }
+    }
+
+
 }
 
 void getGlobalLoad(llvm::IRBuilder<> &builder, llvm::LLVMContext &context, llvm::Value* ptr, llvm::Value *val, size_t offset) {
