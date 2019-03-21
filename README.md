@@ -1,4 +1,4 @@
-# TensileLite
+# TensileLite - Deprecated Software
 LLVM inline ASM micro kernel generator
 
 ### Requirements
